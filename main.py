@@ -51,7 +51,10 @@ class WikiData(object):
             for line in f:
                 if line != "[\n" and line != "]" and line != "]\n" and len(line)>2:
                     try:
-                        item = json.loads(line[:-2])
+                        if not line.endswith("]\n"):
+                            item = json.loads(line[:-2])
+                        else:
+                            item = json.loads(line)
                         item_id = item.get('id')
                         if item_id[0] == 'Q':
                             self.entries[item_id] = {}
