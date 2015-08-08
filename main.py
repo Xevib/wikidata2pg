@@ -15,16 +15,25 @@ class WikiData(object):
                     d[k] = float(d[k])
         return d
 
-    def __init__(self, file,host, database,user,password):
+    def __init__(self, file,host, database, user, password, postgis):
         self.file = file
         self.host = host
         self.database = database
         self.user = user
         self.password = password
+        self.postgis = postgis
         self.conn = psycopg2.connect(database= self.database,user= self.user,password=password,host=host)
         print "Connected,startirng dump"
         self.entries = {}
         self.start = datetime.now()
+
+    def checkPostgis(self):
+        cur = self.conn.cursor()
+        try:
+            cur.execute("SELECT PostGIS_full_version();")
+            return cur.fetchone() !=()
+        except:
+            return False
 
     def switchTables(self):
         cur = self.conn.cursor()
@@ -44,7 +53,6 @@ class WikiData(object):
         self.conn.commit()
         cur.close()
 
-    #def checkPostgis(self):
 
     def loadData(self):
         with open(self.file, 'r') as f:
@@ -76,22 +84,17 @@ class WikiData(object):
                         print line
         print "started at "+str(self.start)
         print "ended at "+str(datetime.now())
+
     def saveData(self):
         cur = self.conn.cursor()
         for identifier in  self.entries.keys():
             values = self.entries[identifier]
             for property in values.keys():
-                #try:
-                if type(values[property]) != list and 'latitude' in values[property]['value'] and 'longitude' in values[property]['value']:
-                    cur.execute("INSERT INTO wikidata_entities_tmp(entity,statment,value,geom) VALUES (%s,%s,%s,ST_SetSRID(ST_MakePoint(%s,%s),4326))", (identifier,property, Json(values[property]),values[property]['value']['longitude'],values[property]['value']['latitude'],))
+                if self.postgis and type(values[property]) != list and 'latitude' in values[property]['value'] and 'longitude' in values[property]['value']:
+                    cur.execute("INSERT INTO wikidata_entities_tmp(entity,statment,value,geom) VALUES (%s,%s,%s,ST_SetSRID(ST_MakePoint(%s,%s),4326))",
+                                (identifier, property, Json(values[property]), values[property]['value']['longitude'], values[property]['value']['latitude'],))
                 else:
-                    cur.execute("INSERT INTO wikidata_entities_tmp(entity,statment,value) VALUES (%s,%s,%s)", (identifier,property, Json(values[property]),) )
-                #except Exception as e:
-                    #ex_type, ex, tb = sys.exc_info()
-                    #traceback.print_tb(tb)
-                    #print "error: "+str(e)
-                    #print "value:"+str(values[property])
-                    #print "id:"+str(identifier)
+                    cur.execute("INSERT INTO wikidata_entities_tmp(entity,statment,value) VALUES (%s,%s,%s)", (identifier,property, Json(values[property]),))
         self.conn.commit()
         cur.close()
 def help():
@@ -142,7 +145,10 @@ for arg in  sys.argv:
     if re.match('-f=(.*)',arg):
         filename = re.match('-f=(.*)',arg).groups()[0]
 
-w = WikiData(filename, host, database, user, password)
-w.initTemp()
-w.loadData()
-w.switchTables()
+w = WikiData(filename, host, database, user, password,postgis_suport)
+if w.checkPostgis() or not postgis_suport:
+    w.initTemp()
+    w.loadData()
+    w.switchTables()
+else:
+    print "Postgis not installed"
