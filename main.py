@@ -123,9 +123,10 @@ host = ""
 password = ""
 user = ""
 filename = ""
-for arg in  sys.argv:
+for arg in sys.argv:
     if arg == '--help' or arg == '-h':
-        print
+        w = WikiData(filename, host, database, user, password,postgis_suport)
+        w.help()
         exit()
     if arg =='--postgis' or arg == '-p':
         postgis_suport = True
