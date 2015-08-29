@@ -41,6 +41,10 @@ class WikiData(object):
         cur.execute("DROP TABLE IF EXISTS wikidata_entities;")
         self.conn.commit()
         cur.execute("ALTER TABLE wikidata_entities_tmp RENAME TO wikidata_entities;")
+        self.conn.commit()
+        cur.execute("ALTER TABLE public.wikidata_entities RENAME CONSTRAINT wikidata_entities_pkey_tmp TO wikidata_entities_pkey;")
+        self.conn.commit()
+        cur.execute("ALTER TABLE public.wikidata_sitelinks RENAME CONSTRAINT wikidata_sitelinks_pkey_tmp TO wikidata_sitelinks_pkey;")
         cur.close()
 
     def initTemp(self):
@@ -51,10 +55,6 @@ class WikiData(object):
         cur.execute(sql)
         self.conn.commit()
         cur.execute("SELECT AddGeometryColumn('public','wikidata_entities_tmp','geom','4326','POINT',2);")
-        self.conn.commit()
-        cur.execute("ALTER TABLE public.wikidata_entities RENAME CONSTRAINT wikidata_entities_pkey_tmp TO wikidata_entities_pkey;")
-        self.conn.commit()
-        cur.execute("ALTER TABLE public.wikidata_sitelinks RENAME CONSTRAINT wikidata_sitelinks_pkey_tmp TO wikidata_sitelinks_pkey;")
         self.conn.commit()
         cur.close()
 
