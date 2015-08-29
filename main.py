@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import psycopg2
 from psycopg2.extras import Json
 from decimal import Decimal
