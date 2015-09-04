@@ -51,8 +51,15 @@ class WikiData(object):
         cur = self.conn.cursor()
         cur.execute("DROP TABLE IF EXISTS wikidata_entities_tmp;")
         self.conn.commit()
-        sql = "CREATE TABLE public.wikidata_entities_tmp(entity text,statment text,value json,id integer NOT NULL DEFAULT nextval('indx_entity'::regclass),CONSTRAINT wikidata_entities_pkey_tmp PRIMARY KEY (id))"
+        sql = "CREATE TABLE public.wikidata_entities_tmp(id bigint NOT NULL DEFAULT nextval('indx_entity'::regclass),entity text,statment text,value json,CONSTRAINT wikidata_entities_pkey_tmp PRIMARY KEY (id))"
         cur.execute(sql)
+        sql ="""
+        IF EXISTS (SELECT 0 FROM pg_class where relname = '<my sequence name here>' )THEN
+            SELECT setval('indx_entity', 21, true)
+        ELSE
+            CREATE SEQUENCE public.indx_entity INCREMENT 1 MINVALUE 1 MAXVALUE 9223372036854775807 START 1 CACHE 1;
+        ENDIF
+        """
         self.conn.commit()
         cur.execute("SELECT AddGeometryColumn('public','wikidata_entities_tmp','geom','4326','POINT',2);")
         self.conn.commit()
@@ -62,7 +69,7 @@ class WikiData(object):
     def loadData(self):
         with open(self.file, 'r') as f:
             for line in f:
-                if line != "[\n" and line != "]" and line != "]\n" and len(line)>2:
+                if line != "[\n" and line != "]" and line != "]\n" and len(line) > 2:
                     try:
                         if line.endswith(",\n"):
                             item = json.loads(line[:-2])
@@ -84,6 +91,7 @@ class WikiData(object):
                             self.saveData()
                             self.entries = {}
                     except Exception as e:
+                        print e.message
                         ex_type, ex, tb = sys.exc_info()
                         traceback.print_tb(tb)
                         print line
@@ -99,7 +107,7 @@ class WikiData(object):
                     cur.execute("INSERT INTO wikidata_entities_tmp(entity,statment,value,geom) VALUES (%s,%s,%s,ST_SetSRID(ST_MakePoint(%s,%s),4326))",
                                 (identifier, property, Json(values[property]), values[property]['value']['longitude'], values[property]['value']['latitude'],))
                 else:
-                    cur.execute("INSERT INTO wikidata_entities_tmp(entity,statment,value) VALUES (%s,%s,%s)", (identifier,property, Json(values[property]),))
+                    cur.execute("INSERT INTO wikidata_entities_tmp(entity,statment,value) VALUES (%s,%s,%s)", (identifier,property, json.dumps(values[property])))
         self.conn.commit()
         cur.close()
 def help():
