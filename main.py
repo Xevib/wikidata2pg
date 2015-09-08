@@ -40,11 +40,16 @@ class WikiData(object):
         cur = self.conn.cursor()
         cur.execute("DROP TABLE IF EXISTS wikidata_entities;")
         self.conn.commit()
+        cur.execute("DROP TABLE IF EXISTS wikidata_sitelinks;")
+        self.conn.commit()
         cur.execute("ALTER TABLE wikidata_entities_tmp RENAME TO wikidata_entities;")
+        self.conn.commit()
+        cur.execute("ALTER TABLE wikidata_sitelinks_tmp RENAME TO wikidata_sitelinks;")
         self.conn.commit()
         cur.execute("ALTER TABLE public.wikidata_entities RENAME CONSTRAINT wikidata_entities_pkey_tmp TO wikidata_entities_pkey;")
         self.conn.commit()
         cur.execute("ALTER TABLE public.wikidata_sitelinks RENAME CONSTRAINT wikidata_sitelinks_pkey_tmp TO wikidata_sitelinks_pkey;")
+        self.conn.commit()
         cur.close()
 
     def initTemp(self):
@@ -100,14 +105,28 @@ class WikiData(object):
 
     def saveData(self):
         cur = self.conn.cursor()
-        for identifier in  self.entries.keys():
+
+        for identifier in self.sitelinks.keys():
+            links = self.sitelinks[identifier]
+            for link in links:
+                cur.execute("INSERT INTO wikidata_sitelinks_tmp(entity,lang,title) VALUES (%s,%s,%s)", (identifier,link['lang'],link['title']))
+        for identifier in self.entries.keys():
             values = self.entries[identifier]
             for property in values.keys():
-                if self.postgis and type(values[property]) != list and 'latitude' in values[property]['value'] and 'longitude' in values[property]['value']:
-                    cur.execute("INSERT INTO wikidata_entities_tmp(entity,statment,value,geom) VALUES (%s,%s,%s,ST_SetSRID(ST_MakePoint(%s,%s),4326))",
-                                (identifier, property, Json(values[property]), values[property]['value']['longitude'], values[property]['value']['latitude'],))
-                else:
-                    cur.execute("INSERT INTO wikidata_entities_tmp(entity,statment,value) VALUES (%s,%s,%s)", (identifier,property, json.dumps(values[property])))
+                try:
+                    if self.postgis and type(values[property]   ) != list and 'latitude' in values[property]['value'].keys() and 'longitude' in values[property]['value'].keys():
+                        cur.execute("INSERT INTO wikidata_entities_tmp(entity,statment,value,geom) VALUES (%s,%s,%s,ST_SetSRID(ST_MakePoint(%s,%s),4326))",
+                                    (identifier, property, Json(values[property]), values[property]['value']['longitude'], values[property]['value']['latitude'],))
+                    else:
+                        cur.execute("INSERT INTO wikidata_entities_tmp(entity,statment,value) VALUES (%s,%s,%s)", (identifier,property, Json(values[property]),))
+                except Exception as e:
+                    print e.message
+                    ex_type, ex, tb = sys.exc_info()
+                    traceback.print_tb(tb)
+                    print "identifier:{}".format(identifier)
+                    print "property:{}".format(property)
+                    print "values:{}".format(values[property])
+
         self.conn.commit()
         cur.close()
 def help():
