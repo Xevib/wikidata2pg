@@ -88,6 +88,12 @@ class WikiData(object):
                             item = json.loads(line)
                         item_id = item.get('id')
                         if item_id[0] == 'Q':
+                            links = []
+                            if 'sitelinks' in item and item['sitelinks'] != []:
+                                for link in item['sitelinks'].keys():
+                                    if self.wikire.match(link):
+                                        links.append({'lang':self.wikire.match(link).groups()[0],'title':item['sitelinks'][link]['title']})
+                            self.sitelinks[item_id] = links
                             self.entries[item_id] = {}
                             if 'claims' in item and item['claims'] != []:
                                 for property in item['claims'].keys():
