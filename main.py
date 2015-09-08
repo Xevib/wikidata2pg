@@ -57,17 +57,22 @@ class WikiData(object):
         cur = self.conn.cursor()
         cur.execute("DROP TABLE IF EXISTS wikidata_entities_tmp;")
         self.conn.commit()
-        sql = "CREATE TABLE public.wikidata_entities_tmp(id bigint NOT NULL DEFAULT nextval('indx_entity'::regclass),entity text,statment text,value json,CONSTRAINT wikidata_entities_pkey_tmp PRIMARY KEY (id))"
+        cur.execute("DROP TABLE IF EXISTS wikidata_sitelinks_tmp;")
+        self.conn.commit()
+        sql = "CREATE TABLE public.wikidata_entities_tmp(entity text,statment text,value json,id integer NOT NULL DEFAULT nextval('indx_entity'::regclass),CONSTRAINT wikidata_entities_pkey_tmp PRIMARY KEY (id))"
         cur.execute(sql)
-        sql ="""
-        IF EXISTS (SELECT 0 FROM pg_class where relname = '<my sequence name here>' )THEN
-            SELECT setval('indx_entity', 21, true)
-        ELSE
-            CREATE SEQUENCE public.indx_entity INCREMENT 1 MINVALUE 1 MAXVALUE 9223372036854775807 START 1 CACHE 1;
-        ENDIF
-        """
+        self.conn.commit()
+        sql = "CREATE TABLE public.wikidata_sitelinks_tmp(entity text,lang text,title text,id integer NOT NULL DEFAULT nextval('indx_entity'::regclass),CONSTRAINT wikidata_sitelinks_pkey_tmp PRIMARY KEY (id))"
+        cur.execute(sql)
         self.conn.commit()
         cur.execute("SELECT AddGeometryColumn('public','wikidata_entities_tmp','geom','4326','POINT',2);")
+        self.conn.commit()
+        cur.execute("SELECT 0 as ex FROM pg_class where relname = 'indx_entity'")
+        data = cur.fetchall()
+        if data == [(0,)]:
+            cur.execute("SELECT setval('indx_entity', 0, true)")
+        else:
+            cur.execute("CREATE SEQUENCE public.indx_entity INCREMENT 1 MINVALUE 1 MAXVALUE 9223372036854775807 START 1 CACHE 1;")
         self.conn.commit()
         cur.close()
 
