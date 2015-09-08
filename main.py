@@ -70,7 +70,7 @@ class WikiData(object):
         cur.execute("SELECT 0 as ex FROM pg_class where relname = 'indx_entity'")
         data = cur.fetchall()
         if data == [(0,)]:
-            cur.execute("SELECT setval('indx_entity', 0, true)")
+            cur.execute("SELECT setval('indx_entity', 1, true)")
         else:
             cur.execute("CREATE SEQUENCE public.indx_entity INCREMENT 1 MINVALUE 1 MAXVALUE 9223372036854775807 START 1 CACHE 1;")
         self.conn.commit()
