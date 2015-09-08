@@ -114,11 +114,11 @@ class WikiData(object):
         for identifier in self.entries.keys():
             values = self.entries[identifier]
             for property in values.keys():
-                v = json.loads(values[property])
+                v = json.loads(values[property]['value'])
                 try:
-                    if self.postgis and type(values[property]) != list and 'latitude' in v['value'].keys() and 'longitude' in v['value'].keys():
+                    if type(v) == dict and self.postgis and type(values[property]) != list and 'latitude' in v.keys() and 'longitude' in v.keys():
                         cur.execute("INSERT INTO wikidata_entities_tmp(entity,statment,value,geom) VALUES (%s,%s,%s,ST_SetSRID(ST_MakePoint(%s,%s),4326))",
-                                    (identifier, property, Json(values[property]), v['value']['longitude'], v['value']['latitude'],))
+                                    (identifier, property, Json(values[property]), v['longitude'], v['latitude'],))
                     else:
                         cur.execute("INSERT INTO wikidata_entities_tmp(entity,statment,value) VALUES (%s,%s,%s)", (identifier,property, Json(values[property]),))
                 except Exception as e:
