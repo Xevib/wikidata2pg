@@ -28,6 +28,7 @@ class WikiData(object):
         self.entries = {}
         self.sitelinks = {}
         self.start = datetime.now()
+        self.wikire = re.compile("(.*)wiki$")
 
     def checkPostgis(self):
         cur = self.conn.cursor()
