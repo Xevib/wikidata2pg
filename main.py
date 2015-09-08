@@ -26,6 +26,7 @@ class WikiData(object):
         self.conn = psycopg2.connect(database= self.database,user= self.user,password=password,host=host)
         print "Connected,startirng dump"
         self.entries = {}
+        self.sitelinks = {}
         self.start = datetime.now()
 
     def checkPostgis(self):
