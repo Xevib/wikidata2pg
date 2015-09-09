@@ -7,6 +7,8 @@ from datetime import datetime
 import sys
 import traceback
 import re
+from StringIO import StringIO
+
 
 class WikiData(object):
     def _dec2float(self,d):
@@ -25,8 +27,8 @@ class WikiData(object):
         self.postgis = postgis
         self.conn = psycopg2.connect(database= self.database,user= self.user,password=password,host=host)
         print "Connected,startirng dump"
-        self.entries = {}
-        self.sitelinks = {}
+        self.entries = []
+        self.sitelinks = []
         self.start = datetime.now()
         self.wikire = re.compile("(.*)wiki$")
 
@@ -60,10 +62,10 @@ class WikiData(object):
         self.conn.commit()
         cur.execute("DROP TABLE IF EXISTS wikidata_sitelinks_tmp;")
         self.conn.commit()
-        sql = "CREATE TABLE public.wikidata_entities_tmp(entity text,statment text,value json,id integer NOT NULL DEFAULT nextval('indx_entity'::regclass),CONSTRAINT wikidata_entities_pkey_tmp PRIMARY KEY (id))"
+        sql = "CREATE TABLE public.wikidata_entities_tmp(id integer NOT NULL DEFAULT nextval('indx_entity'::regclass),entity text,statment text,value json,CONSTRAINT wikidata_entities_pkey_tmp PRIMARY KEY (id))"
         cur.execute(sql)
         self.conn.commit()
-        sql = "CREATE TABLE public.wikidata_sitelinks_tmp(entity text,lang text,title text,id integer NOT NULL DEFAULT nextval('indx_entity'::regclass),CONSTRAINT wikidata_sitelinks_pkey_tmp PRIMARY KEY (id))"
+        sql = "CREATE TABLE public.wikidata_sitelinks_tmp(id integer NOT NULL DEFAULT nextval('indx_entity'::regclass),entity text,lang text,title text,CONSTRAINT wikidata_sitelinks_pkey_tmp PRIMARY KEY (id))"
         cur.execute(sql)
         self.conn.commit()
         cur.execute("SELECT AddGeometryColumn('public','wikidata_entities_tmp','geom','4326','POINT',2);")
@@ -93,8 +95,12 @@ class WikiData(object):
                             if 'sitelinks' in item and item['sitelinks'] != []:
                                 for link in item['sitelinks'].keys():
                                     if self.wikire.match(link):
-                                        links.append({'lang':self.wikire.match(link).groups()[0],'title':item['sitelinks'][link]['title']})
-                            self.sitelinks[item_id] = links
+                                        dataline = [len(links)+1, item_id, self.wikire.match(link).groups()[0],
+                                                    item['sitelinks'][link]['title']]
+                                        line = "{0}\t{1}\t{2}\t{3}".format(database.replace(None,"\\N")
+                                        )
+                                        self.sitelinks.append(line)
+                            #self.sitelinks[item_id] = links
                             self.entries[item_id] = {}
                             if 'claims' in item and item['claims'] != []:
                                 for property in item['claims'].keys():
@@ -118,11 +124,13 @@ class WikiData(object):
 
     def saveData(self):
         cur = self.conn.cursor()
-
-        for identifier in self.sitelinks.keys():
-            links = self.sitelinks[identifier]
-            for link in links:
-                cur.execute("INSERT INTO wikidata_sitelinks_tmp(entity,lang,title) VALUES (%s,%s,%s)", (identifier,link['lang'],link['title']))
+        ssitelinks = StringIO()
+        ssitelinks.write('\n'.join(self.sitelinks))
+        cur.copy_from(ssitelinks,'wikidata_sitelinks_tmp')
+        #for identifier in self.sitelinks.keys():
+        #    links = self.sitelinks[identifier]
+        #    for link in links:
+        #        cur.execute("INSERT INTO wikidata_sitelinks_tmp(entity,lang,title) VALUES (%s,%s,%s)", (identifier,link['lang'],link['title']))
         for identifier in self.entries.keys():
             values = self.entries[identifier]
             for property in values.keys():
@@ -194,6 +202,6 @@ w = WikiData(filename, host, database, user, password,postgis_suport)
 if w.checkPostgis() or not postgis_suport:
     w.initTemp()
     w.loadData()
-    w.switchTables()
+    #w.switchTables()
 else:
     print "Postgis not installed"
