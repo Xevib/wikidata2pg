@@ -108,6 +108,7 @@ class WikiData(object):
                         if len(self.entries) > 100:
                             self.saveData()
                             self.entries = {}
+                            self.sitelinks = {}
                     except Exception as e:
                         print e.message
                         ex_type, ex, tb = sys.exc_info()
