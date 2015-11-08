@@ -8,17 +8,20 @@ import sys
 import traceback
 import re
 from StringIO import StringIO
+from shapely import geos
+from shapely.geometry import Point
+import raven
 
 
 class WikiData(object):
-    def _dec2float(self,d):
+    def _dec2float(self, d):
         if type(d) == dict:
             for k in d:
                 if type(d[k]) == Decimal:
                     d[k] = float(d[k])
         return d
 
-    def __init__(self, file,host, database, user, password, postgis):
+    def __init__(self, file,host, database, user, password, postgis,sentry_dsn=None):
         self.file = file
         self.host = host
         self.database = database
@@ -27,10 +30,18 @@ class WikiData(object):
         self.postgis = postgis
         self.conn = psycopg2.connect(database= self.database,user= self.user,password=password,host=host)
         print "Connected,startirng dump"
-        self.entries = []
-        self.sitelinks = []
+        self.entries = ""
+        self.sitelinks = ""
         self.start = datetime.now()
         self.wikire = re.compile("(.*)wiki$")
+        self.num_sitelinks =1
+        self.num_entries = 1
+        geos.WKBWriter.defaults['include_srid'] = True
+        self.sentry_dsn =sentry_dsn
+        if sentry_dsn:
+            self.client= raven.Client(dsn=self.sentry_dsn)
+
+
 
     def checkPostgis(self):
         cur = self.conn.cursor()
@@ -57,6 +68,10 @@ class WikiData(object):
         cur.close()
 
     def initTemp(self):
+        if self.sentry_dsn:
+            self.client.captureMessage('Dump started')
+            print "iniciat"
+
         cur = self.conn.cursor()
         cur.execute("DROP TABLE IF EXISTS wikidata_entities_tmp;")
         self.conn.commit()
@@ -79,7 +94,6 @@ class WikiData(object):
         self.conn.commit()
         cur.close()
 
-
     def loadData(self):
         with open(self.file, 'r') as f:
             for line in f:
@@ -95,46 +109,67 @@ class WikiData(object):
                             if 'sitelinks' in item and item['sitelinks'] != []:
                                 for link in item['sitelinks'].keys():
                                     if self.wikire.match(link):
-                                        dataline = [len(links)+1, item_id, self.wikire.match(link).groups()[0],
-                                                    item['sitelinks'][link]['title']]
-                                        line = "{0}\t{1}\t{2}\t{3}".format(database.replace(None,"\\N")
-                                        )
-                                        self.sitelinks.append(line)
-                            #self.sitelinks[item_id] = links
-                            self.entries[item_id] = {}
+                                        id = self.num_sitelinks
+                                        if item_id is not None:
+                                            entity = item_id.replace("\n","\\n").replace("\t", "\\t")
+                                        else:
+                                            entity ="\\N"
+
+                                        if self.wikire.match(link).groups()[0] is not None:
+                                            lang = self.wikire.match(link).groups()[0].replace("\n", "\\n").replace("\t","\\t")
+                                        else:
+                                            lang = "\\N"
+                                        if item['sitelinks'][link]['title'] is not None:
+                                            title = item['sitelinks'][link]['title'].replace("\t", "\\t").replace("\n","\\n")
+                                        else:
+                                            title = "\\N"
+                                        dataline = [id, entity, lang, title]
+                                        self.sitelinks += '{0}\t{1}\t{2}\t{3}\n'.format(*dataline)
+                                        self.num_sitelinks += 1
+                            #self.entries[item_id] = {}
                             if 'claims' in item and item['claims'] != []:
                                 for property in item['claims'].keys():
+                                    geom = "\\N"
                                     value = []
                                     for element in item['claims'][property]:
                                         if element['mainsnak']['snaktype'] == 'value':
                                             value.append({'type': element['mainsnak']['datavalue']['type'],'value': self._dec2float(element['mainsnak']['datavalue']['value'])})
                                     if len(value) == 1:
                                         value = value[0]
-                                    self.entries[item_id][property] = value
-                        if len(self.entries) > 100:
+                                        if 'longitude' in value['value'] and 'latitude' in value['value'] and self.postgis:
+                                            p = Point(value['value']['longitude'],value['value']['latitude'])
+                                            geos.lgeos.GEOSSetSRID(p._geom, 4326)
+                                            geom = p.wkb_hex
+                                            #geom = point.ExportToEwkb().encode('hex')
+                                    line = '{0}\t{1}\t{2}\t{3}\t{4}\n'.format(self.num_entries,item_id,property,Json(value).dumps(value).replace("\\","\\\\"),geom)
+                                    self.entries += line
+                                    self.num_entries += 1
+                        if len(self.entries) > 1000:
                             self.saveData()
-                            self.entries = {}
+                            self.entries = ""
+                            self.sitelinks = ""
                     except Exception as e:
+                        if self.sentry_dsn:
+                            self.client.captureException()
                         print e.message
-                        ex_type, ex, tb = sys.exc_info()
-                        traceback.print_tb(tb)
+                        print traceback.format_exc()
                         print line
         print "started at "+str(self.start)
         print "ended at "+str(datetime.now())
 
+
     def saveData(self):
         cur = self.conn.cursor()
-        ssitelinks = StringIO()
-        ssitelinks.write('\n'.join(self.sitelinks))
-        cur.copy_from(ssitelinks,'wikidata_sitelinks_tmp')
-        #for identifier in self.sitelinks.keys():
-        #    links = self.sitelinks[identifier]
-        #    for link in links:
-        #        cur.execute("INSERT INTO wikidata_sitelinks_tmp(entity,lang,title) VALUES (%s,%s,%s)", (identifier,link['lang'],link['title']))
-        for identifier in self.entries.keys():
+        ssitelinks = StringIO(self.sitelinks)
+        cur.copy_from(ssitelinks, 'wikidata_sitelinks_tmp')
+        sentries = StringIO(self.entries)
+        cur.copy_from(sentries, 'wikidata_entities_tmp')
+
+        """for identifier in self.entries.keys():
             values = self.entries[identifier]
             for property in values.keys():
                 try:
+
                     if self.postgis and type(values[property]) != list and type(values[property]['value']) == dict and 'latitude' in values[property]['value'].keys() and 'longitude' in values[property]['value'].keys():
                         cur.execute("INSERT INTO wikidata_entities_tmp(entity,statment,value,geom) VALUES (%s,%s,%s,ST_SetSRID(ST_MakePoint(%s,%s),4326))",
                                     (identifier, property, Json(values[property]), values[property]['value']['longitude'], values[property]['value']['latitude'],))
@@ -146,10 +181,12 @@ class WikiData(object):
                     traceback.print_tb(tb)
                     print "identifier:{}".format(identifier)
                     print "property:{}".format(property)
-                    print "values:{}".format(values[property])
+                    print "values:{}".format(values[property])"""
 
         self.conn.commit()
         cur.close()
+
+
 def help():
     print "Syntax:"
     print "-------"
@@ -171,6 +208,7 @@ host = ""
 password = ""
 user = ""
 filename = ""
+dsn = None
 for arg in sys.argv:
     if arg == '--help' or arg == '-h':
         help()
@@ -197,8 +235,12 @@ for arg in sys.argv:
         filename = re.match('--file=(.*)',arg).groups()[0]
     if re.match('-f=(.*)',arg):
         filename = re.match('-f=(.*)',arg).groups()[0]
-
-w = WikiData(filename, host, database, user, password,postgis_suport)
+    if re.match('--sentry-dsn=(.*)',arg):
+        dsn = re.match('--sentry-dsn=(.*)', arg).groups()[0]
+if dsn:
+    w = WikiData(filename, host, database, user, password,postgis_suport,sentry_dsn=dsn)
+else:
+    w = WikiData(filename, host, database, user, password,postgis_suport)
 if w.checkPostgis() or not postgis_suport:
     w.initTemp()
     w.loadData()
