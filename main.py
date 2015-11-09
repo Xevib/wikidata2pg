@@ -141,7 +141,7 @@ class WikiData(object):
                                             geos.lgeos.GEOSSetSRID(p._geom, 4326)
                                             geom = p.wkb_hex
                                             #geom = point.ExportToEwkb().encode('hex')
-                                    line = '{0}\t{1}\t{2}\t{3}\t{4}\n'.format(self.num_entries,item_id,property,Json(value).dumps(value).replace("\\","\\\\"),geom)
+                                    line = '{0}\t{1}\t{2}\t{3}\t{4}\n'.format(self.num_entries,item_id,property,Json(value).dumps(value).replace("\\", "\\\\ "),geom)
                                     self.entries += line
                                     self.num_entries += 1
                         if len(self.entries) > 1000:
