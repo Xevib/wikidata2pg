@@ -111,16 +111,16 @@ class WikiData(object):
                                     if self.wikire.match(link):
                                         id = self.num_sitelinks
                                         if item_id is not None:
-                                            entity = item_id.replace("\n","\\n").replace("\t", "\\t")
+                                            entity = item_id.replace("\n","\\n").replace("\t", "\\t").replace("\\","\\\\")
                                         else:
                                             entity ="\\N"
 
                                         if self.wikire.match(link).groups()[0] is not None:
-                                            lang = self.wikire.match(link).groups()[0].replace("\n", "\\n").replace("\t","\\t")
+                                            lang = self.wikire.match(link).groups()[0].replace("\n", "\\n").replace("\t","\\t").replace("\\","\\\\")
                                         else:
                                             lang = "\\N"
                                         if item['sitelinks'][link]['title'] is not None:
-                                            title = item['sitelinks'][link]['title'].replace("\t", "\\t").replace("\n","\\n")
+                                            title = item['sitelinks'][link]['title'].replace("\t", "\\t").replace("\n","\\n").replace("\\","\\\\")
                                         else:
                                             title = "\\N"
                                         dataline = [id, entity, lang, title]
@@ -141,7 +141,7 @@ class WikiData(object):
                                             geos.lgeos.GEOSSetSRID(p._geom, 4326)
                                             geom = p.wkb_hex
                                             #geom = point.ExportToEwkb().encode('hex')
-                                    line = '{0}\t{1}\t{2}\t{3}\t{4}\n'.format(self.num_entries,item_id,property,Json(value).dumps(value).replace("\\", "\\\\ "),geom)
+                                    line = '{0}\t{1}\t{2}\t{3}\t{4}\n'.format(self.num_entries,item_id,property,Json(value).dumps(value).replace("\\", "\\\\"), geom)
                                     self.entries += line
                                     self.num_entries += 1
                         if len(self.entries) > 1000:
