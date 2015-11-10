@@ -14,44 +14,44 @@ import raven
 
 
 class WikiData(object):
-    def _dec2float(self, d):
+
+    @staticmethod
+    def _dec2float( d):
         if type(d) == dict:
             for k in d:
                 if type(d[k]) == Decimal:
                     d[k] = float(d[k])
         return d
 
-    def __init__(self, file,host, database, user, password, postgis,sentry_dsn=None):
-        self.file = file
+    def __init__(self, filename, host, database, user, password, postgis, sentry_dsn=None):
+        self.file = filename
         self.host = host
         self.database = database
         self.user = user
         self.password = password
         self.postgis = postgis
-        self.conn = psycopg2.connect(database= self.database,user= self.user,password=password,host=host)
-        print "Connected,startirng dump"
-        self.entries = ""
-        self.sitelinks = ""
+        self.conn = psycopg2.connect(database=self.database, user=self.user, password=password, host=host)
+        print 'Connected,startirng dump'
+        self.entries = ''
+        self.sitelinks = ''
         self.start = datetime.now()
         self.wikire = re.compile("(.*)wiki$")
         self.num_sitelinks =1
         self.num_entries = 1
         geos.WKBWriter.defaults['include_srid'] = True
-        self.sentry_dsn =sentry_dsn
+        self.sentry_dsn = sentry_dsn
         if sentry_dsn:
-            self.client= raven.Client(dsn=self.sentry_dsn)
+            self.client = raven.Client(dsn=self.sentry_dsn)
 
-
-
-    def checkPostgis(self):
+    def check_postgis(self):
         cur = self.conn.cursor()
         try:
-            cur.execute("SELECT PostGIS_full_version();")
+            cur.execute('SELECT PostGIS_full_version();')
             return cur.fetchone() !=()
         except:
             return False
 
-    def switchTables(self):
+    def switch_tables(self):
         cur = self.conn.cursor()
         cur.execute("DROP TABLE IF EXISTS wikidata_entities;")
         self.conn.commit()
@@ -67,7 +67,7 @@ class WikiData(object):
         self.conn.commit()
         cur.close()
 
-    def initTemp(self):
+    def init_temp(self):
         if self.sentry_dsn:
             self.client.captureMessage('Dump started')
             print "iniciat"
@@ -94,7 +94,7 @@ class WikiData(object):
         self.conn.commit()
         cur.close()
 
-    def loadData(self):
+    def load_data(self):
         with open(self.file, 'r') as f:
             for line in f:
                 if line != "[\n" and line != "]" and line != "]\n" and len(line) > 2:
@@ -126,7 +126,6 @@ class WikiData(object):
                                         dataline = [id, entity, lang, title]
                                         self.sitelinks += '{0}\t{1}\t{2}\t{3}\n'.format(*dataline)
                                         self.num_sitelinks += 1
-                            #self.entries[item_id] = {}
                             if 'claims' in item and item['claims'] != []:
                                 for property in item['claims'].keys():
                                     geom = "\\N"
@@ -136,26 +135,25 @@ class WikiData(object):
                                             value.append({'type': element['mainsnak']['datavalue']['type'],'value': self._dec2float(element['mainsnak']['datavalue']['value'])})
                                     if len(value) == 1:
                                         value = value[0]
-                                        if isinstance(value,dict) and 'longitude' in value['value'] and 'latitude' in value['value'] and self.postgis:
-                                            p = Point(value['value']['longitude'],value['value']['latitude'])
+                                        if isinstance(value['value'], dict) and 'longitude' in value['value'] and 'latitude' in value['value'] and self.postgis:
+                                            p = Point(value['value']['longitude'], value['value']['latitude'])
                                             geos.lgeos.GEOSSetSRID(p._geom, 4326)
                                             geom = p.wkb_hex
-                                            #geom = point.ExportToEwkb().encode('hex')
-                                    line = '{0}\t{1}\t{2}\t{3}\t{4}\n'.format(self.num_entries,item_id,property,Json(value).dumps(value).replace("\\", "\\\\"), geom)
+                                    line = '{0}\t{1}\t{2}\t{3}\t{4}\n'.format(self.num_entries, item_id, property, Json(value).dumps(value).replace("\\", "\\\\"), geom)
                                     self.entries += line
                                     self.num_entries += 1
                         if len(self.entries) > 1000:
                             self.saveData()
-                            self.entries = ""
-                            self.sitelinks = ""
+                            self.entries = ''
+                            self.sitelinks = ''
                     except Exception as e:
                         if self.sentry_dsn:
                             self.client.captureException()
                         print e.message
                         print traceback.format_exc()
                         print line
-        print "started at "+str(self.start)
-        print "ended at "+str(datetime.now())
+        print 'started at '+str(self.start)
+        print 'ended at '+str(datetime.now())
 
 
     def saveData(self):
@@ -164,30 +162,11 @@ class WikiData(object):
         cur.copy_from(ssitelinks, 'wikidata_sitelinks_tmp')
         sentries = StringIO(self.entries)
         cur.copy_from(sentries, 'wikidata_entities_tmp')
-
-        """for identifier in self.entries.keys():
-            values = self.entries[identifier]
-            for property in values.keys():
-                try:
-
-                    if self.postgis and type(values[property]) != list and type(values[property]['value']) == dict and 'latitude' in values[property]['value'].keys() and 'longitude' in values[property]['value'].keys():
-                        cur.execute("INSERT INTO wikidata_entities_tmp(entity,statment,value,geom) VALUES (%s,%s,%s,ST_SetSRID(ST_MakePoint(%s,%s),4326))",
-                                    (identifier, property, Json(values[property]), values[property]['value']['longitude'], values[property]['value']['latitude'],))
-                    else:
-                        cur.execute("INSERT INTO wikidata_entities_tmp(entity,statment,value) VALUES (%s,%s,%s)", (identifier,property, Json(values[property]),))
-                except Exception as e:
-                    print e.message
-                    ex_type, ex, tb = sys.exc_info()
-                    traceback.print_tb(tb)
-                    print "identifier:{}".format(identifier)
-                    print "property:{}".format(property)
-                    print "values:{}".format(values[property])"""
-
         self.conn.commit()
         cur.close()
 
 
-def help():
+def help_message():
     print "Syntax:"
     print "-------"
     print ""
@@ -200,50 +179,53 @@ def help():
     print "Other commands"
     print "--------------"
     print "--postgis -p Optional , enables postgis usage"
+    print "--sentry-dsn  Optional, uses a sentry dsn to report exceptions"
     print "--help -h This message"
 
+
 postgis_suport = False
-database = ""
-host = ""
-password = ""
-user = ""
-filename = ""
+database = ''
+host = ''
+password = ''
+user = ''
+filename = ''
 dsn = None
 for arg in sys.argv:
     if arg == '--help' or arg == '-h':
-        help()
+        help_message()
         exit()
-    if arg =='--postgis' or arg == '-p':
+    if arg == '--postgis' or arg == '-p':
         postgis_suport = True
-    if re.match('--database=(.*)',arg):
-        database = re.match('--database=(.*)',arg).groups()[0]
+    if re.match('--database=(.*)', arg):
+        database = re.match('--database=(.*)', arg).groups()[0]
     if re.match('-d=(.*)',arg):
-        database = re.match('-d=(.*)',arg).groups()[0]
-    if re.match('--user=(.*)',arg):
-        user = re.match('--user=(.*)',arg).groups()[0]
+        database = re.match('-d=(.*)', arg).groups()[0]
+    if re.match('--user=(.*)', arg):
+        user = re.match('--user=(.*)', arg).groups()[0]
     if re.match('-u=(.*)',arg):
-        user = re.match('-u=(.*)',arg).groups()[0]
-    if re.match('--password=(.*)',arg):
-        password = re.match('--password=(.*)',arg).groups()[0]
-    if re.match('-p=(.*)',arg):
-        password = re.match('-p=(.*)',arg).groups()[0]
-    if re.match('--host=(.*)',arg):
-        host = re.match('--host=(.*)',arg).groups()[0]
+        user = re.match('-u=(.*)', arg).groups()[0]
+    if re.match('--password=(.*)', arg):
+        password = re.match('--password=(.*)', arg).groups()[0]
+    if re.match('-p=(.*)', arg):
+        password = re.match('-p=(.*)', arg).groups()[0]
+    if re.match('--host=(.*)', arg):
+        host = re.match('--host=(.*)', arg).groups()[0]
     if re.match('-h=(.*)',arg):
-        host = re.match('-h=(.*)',arg).groups()[0]
-    if re.match('--file=(.*)',arg):
-        filename = re.match('--file=(.*)',arg).groups()[0]
+        host = re.match('-h=(.*)', arg).groups()[0]
+    if re.match('--file=(.*)', arg):
+        filename = re.match('--file=(.*)', arg).groups()[0]
     if re.match('-f=(.*)',arg):
-        filename = re.match('-f=(.*)',arg).groups()[0]
-    if re.match('--sentry-dsn=(.*)',arg):
+        filename = re.match('-f=(.*)', arg).groups()[0]
+    if re.match('--sentry-dsn=(.*)', arg):
         dsn = re.match('--sentry-dsn=(.*)', arg).groups()[0]
+
 if dsn:
-    w = WikiData(filename, host, database, user, password,postgis_suport,sentry_dsn=dsn)
+    w = WikiData(filename, host, database, user, password, postgis_suport, sentry_dsn=dsn)
 else:
-    w = WikiData(filename, host, database, user, password,postgis_suport)
-if w.checkPostgis() or not postgis_suport:
-    w.initTemp()
-    w.loadData()
-    #w.switchTables()
+    w = WikiData(filename, host, database, user, password, postgis_suport)
+if w.check_postgis() or not postgis_suport:
+    w.init_temp()
+    w.load_data()
+    w.switch_tables()
 else:
-    print "Postgis not installed"
+    print 'Postgis not installed'
