@@ -106,6 +106,7 @@ class WikiData(object):
                             item = json.loads(line)
                         item_id = item.get('id')
                         if item_id[0] == 'Q':
+                            links = []
                             if 'sitelinks' in item and item['sitelinks'] != []:
                                 for link in item['sitelinks'].keys():
                                     if self.wikire.match(link):
