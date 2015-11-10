@@ -17,8 +17,8 @@ import logging
 class WikiData(object):
 
     @staticmethod
-    def _dec2float( d):
-        if type(d) == dict:
+    def _dec2float(d):
+        if isinstance(d, dict):
             for k in d:
                 if type(d[k]) == Decimal:
                     d[k] = float(d[k])
