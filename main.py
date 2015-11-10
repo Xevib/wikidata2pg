@@ -11,6 +11,7 @@ from StringIO import StringIO
 from shapely import geos
 from shapely.geometry import Point
 import raven
+import logging
 
 
 class WikiData(object):
@@ -35,7 +36,7 @@ class WikiData(object):
         self.entries = ''
         self.sitelinks = ''
         self.start = datetime.now()
-        self.wikire = re.compile("(.*)wiki$")
+        self.wikire = re.compile('(.*)wiki$')
         self.num_sitelinks =1
         self.num_entries = 1
         geos.WKBWriter.defaults['include_srid'] = True
@@ -53,29 +54,29 @@ class WikiData(object):
 
     def switch_tables(self):
         cur = self.conn.cursor()
-        cur.execute("DROP TABLE IF EXISTS wikidata_entities;")
+        cur.execute('DROP TABLE IF EXISTS wikidata_entities;')
         self.conn.commit()
-        cur.execute("DROP TABLE IF EXISTS wikidata_sitelinks;")
+        cur.execute('DROP TABLE IF EXISTS wikidata_sitelinks;')
         self.conn.commit()
-        cur.execute("ALTER TABLE wikidata_entities_tmp RENAME TO wikidata_entities;")
+        cur.execute('ALTER TABLE wikidata_entities_tmp RENAME TO wikidata_entities;')
         self.conn.commit()
-        cur.execute("ALTER TABLE wikidata_sitelinks_tmp RENAME TO wikidata_sitelinks;")
+        cur.execute('ALTER TABLE wikidata_sitelinks_tmp RENAME TO wikidata_sitelinks;')
         self.conn.commit()
-        cur.execute("ALTER TABLE public.wikidata_entities RENAME CONSTRAINT wikidata_entities_pkey_tmp TO wikidata_entities_pkey;")
+        cur.execute('ALTER TABLE public.wikidata_entities RENAME CONSTRAINT wikidata_entities_pkey_tmp TO wikidata_entities_pkey;')
         self.conn.commit()
-        cur.execute("ALTER TABLE public.wikidata_sitelinks RENAME CONSTRAINT wikidata_sitelinks_pkey_tmp TO wikidata_sitelinks_pkey;")
+        cur.execute('ALTER TABLE public.wikidata_sitelinks RENAME CONSTRAINT wikidata_sitelinks_pkey_tmp TO wikidata_sitelinks_pkey;')
         self.conn.commit()
         cur.close()
+        if self.sentry_dsn:
+            self.client.captureMessage('Dump finished', level=logging.INFO)
 
     def init_temp(self):
         if self.sentry_dsn:
-            self.client.captureMessage('Dump started')
-            print "iniciat"
-
+            self.client.captureMessage('Dump started', level=logging.INFO)
         cur = self.conn.cursor()
-        cur.execute("DROP TABLE IF EXISTS wikidata_entities_tmp;")
+        cur.execute('DROP TABLE IF EXISTS wikidata_entities_tmp;')
         self.conn.commit()
-        cur.execute("DROP TABLE IF EXISTS wikidata_sitelinks_tmp;")
+        cur.execute('DROP TABLE IF EXISTS wikidata_sitelinks_tmp;')
         self.conn.commit()
         sql = "CREATE TABLE public.wikidata_entities_tmp(id integer NOT NULL DEFAULT nextval('indx_entity'::regclass),entity text,statment text,value json,CONSTRAINT wikidata_entities_pkey_tmp PRIMARY KEY (id))"
         cur.execute(sql)
@@ -155,7 +156,6 @@ class WikiData(object):
         print 'started at '+str(self.start)
         print 'ended at '+str(datetime.now())
 
-
     def saveData(self):
         cur = self.conn.cursor()
         ssitelinks = StringIO(self.sitelinks)
@@ -167,20 +167,20 @@ class WikiData(object):
 
 
 def help_message():
-    print "Syntax:"
-    print "-------"
-    print ""
-    print "--database=<database> -d=<database> Destination database"
-    print "--user=<user> -u=<user> Database user"
-    print "--password=<password> -p=<password> Database password"
-    print "--host=<host> -h=<host> Database host"
+    print 'Syntax:'
+    print '-------'
+    print ''
+    print '--database=<database> -d=<database> Destination database'
+    print '--user=<user> -u=<user> Database user'
+    print '--password=<password> -p=<password> Database password'
+    print '--host=<host> -h=<host> Database host'
     print "--file=<Wikidata json> -f=<Wikidata json> Wikidata's JSON file"
-    print ""
-    print "Other commands"
-    print "--------------"
-    print "--postgis -p Optional , enables postgis usage"
-    print "--sentry-dsn  Optional, uses a sentry dsn to report exceptions"
-    print "--help -h This message"
+    print ''
+    print 'Other commands'
+    print '--------------'
+    print '--postgis -p Optional , enables postgis usage'
+    print '--sentry-dsn  Optional, uses a sentry dsn to report exceptions'
+    print '--help -h This message'
 
 
 postgis_suport = False
