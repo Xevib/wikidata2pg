@@ -106,7 +106,6 @@ class WikiData(object):
                             item = json.loads(line)
                         item_id = item.get('id')
                         if item_id[0] == 'Q':
-                            links = []
                             if 'sitelinks' in item and item['sitelinks'] != []:
                                 for link in item['sitelinks'].keys():
                                     if self.wikire.match(link):
@@ -140,7 +139,8 @@ class WikiData(object):
                                             p = Point(value['value']['longitude'], value['value']['latitude'])
                                             geos.lgeos.GEOSSetSRID(p._geom, 4326)
                                             geom = p.wkb_hex
-                                    line = '{0}\t{1}\t{2}\t{3}\t{4}\n'.format(self.num_entries, item_id, property, Json(value).dumps(value).replace("\\", "\\\\"), geom)
+                                    line = '{0}\t{1}\t{2}\t{3}\t{4}\n'.format(
+                                        self.num_entries, item_id, property, Json(value).dumps(value).replace("\\", "\\\\"), geom)
                                     self.entries += line
                                     self.num_entries += 1
                         if len(self.entries) > 1000:
