@@ -136,7 +136,7 @@ class WikiData(object):
                                             value.append({'type': element['mainsnak']['datavalue']['type'],'value': self._dec2float(element['mainsnak']['datavalue']['value'])})
                                     if len(value) == 1:
                                         value = value[0]
-                                        if 'longitude' in value['value'] and 'latitude' in value['value'] and self.postgis:
+                                        if isinstance(value,dict) and 'longitude' in value['value'] and 'latitude' in value['value'] and self.postgis:
                                             p = Point(value['value']['longitude'],value['value']['latitude'])
                                             geos.lgeos.GEOSSetSRID(p._geom, 4326)
                                             geom = p.wkb_hex
